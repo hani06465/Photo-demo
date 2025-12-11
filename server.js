@@ -5,9 +5,24 @@ const path = require('path');
 const fs = require('fs');
 const app = express();
 
-// Create uploads folder if it doesn't exist
-if (!fs.existsSync('uploads')) {
-  fs.mkdirSync('uploads');
+// REPLACE THE EXISTING FOLDER CREATION CODE WITH THIS:
+const uploadsDir = 'uploads';
+
+// Check if the path exists and is NOT a directory (i.e., it's a file)
+if (fs.existsSync(uploadsDir)) {
+  const stats = fs.statSync(uploadsDir);
+  if (!stats.isDirectory()) {
+    console.log(`⚠️  Found a FILE named '${uploadsDir}', deleting it to create a directory.`);
+    fs.unlinkSync(uploadsDir); // Delete the file
+    fs.mkdirSync(uploadsDir); // Create the directory
+    console.log(`✅ Created '${uploadsDir}' directory.`);
+  } else {
+    console.log(`✅ '${uploadsDir}' directory already exists.`);
+  }
+} else {
+  // Path doesn't exist at all, create the directory
+  fs.mkdirSync(uploadsDir);
+  console.log(`✅ Created '${uploadsDir}' directory.`);
 }
 
 // Middleware
