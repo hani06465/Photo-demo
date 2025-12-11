@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Photo + Location Demo — Consent Required</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Roboto, "Segoe UI", Arial; padding: 20px; max-width: 800px; margin: auto; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
+    video, canvas { width: 100%; max-width: 480px; border-radius: 6px; background: #000; }
+    .controls { margin-top: 12px; display:flex; gap:8px; flex-wrap:wrap; }
+    button { padding: 8px 12px; border-radius:6px; border:1px solid #888; background:#fff; cursor:pointer; }
+    button:disabled { opacity:0.5; cursor:not-allowed; }
+    .consent { background:#fffbeb; border-left:4px solid #f59e0b; padding:8px; margin-bottom:12px; }
+    .status { margin-top:8px; color:#333; }
+  </style>
+</head>
+<body>
+  <h1>Photo + Location Demo (Consent-first)</h1>
+
+  <div class="card">
+    <div class="consent">
+      <strong>Consent notice:</strong>
+      This demo <em>will</em> request access to your camera and location. The photo and coordinates will be uploaded to the demo server only <strong>if you click “Capture & Upload”</strong>. Do not continue unless you consent.
+    </div>
+
+    <p>
+      <label>
+        <input id="consentCheckbox" type="checkbox" />
+        I understand and consent to share my camera photo and location with this demo server.
+      </label>
+    </p>
+
+    <div>
+      <video id="video" playsinline autoplay></video>
+      <canvas id="canvas" style="display:none;"></canvas>
+    </div>
+
+    <div class="controls">
+      <button id="startBtn">Start Camera</button>
+      <button id="captureBtn" disabled>Capture & Upload</button>
+      <button id="stopBtn" disabled>Stop Camera</button>
+    </div>
+
+    <div class="status" id="status">Status: idle</div>
+    <div id="result"></div>
+  </div>
+
+<script>
+const startBtn = document.getElementById('startBtn');
+const captureBtn = document.getElementById('captureBtn');
+const stopBtn = document.getElementById('stopBtn');
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const status = document.getElementById('status');
+const consent = document.getElementById('consentCheckbox');
+
+let stream = null;
+
+function setStatus(msg) { status.textContent = 'Status: ' + msg; }
+
+startBtn.addEventListener('click', async () => {
+  if (!consent.checked) {
+    alert('You must check the consent box first.');
+    return;
+  }
+  try {
+    setStatus('requesting camera permission...');
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+    video.srcObject = stream;
+    captureBtn.disabled = false;
+    stopBtn.disabled = false;
+    setStatus('camera running — you may capture');
+  } catch (err) {
+    console.error(err);
+    setStatus('camera permission denied or not available: ' + err.message);
+  }
+});
+
+stopBtn.addEventListener('click', () => {
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+    video.srcObject = null;
+    stream = null;
+    captureBtn.disabled = true;
+    stopBtn.disabled = true;
+    setStatus('camera stopped');
+  }
+});
+
+captureBtn.addEventListener('click', async () => {
+  if (!consent.checked) { alert('Consent required.'); return; }
+  if (!stream) { alert('Start the camera first.'); return; }
+
+  setStatus('capturing photo...');
+  // draw current video frame to canvas
+  const w = video.videoWidth || 640;
+  const h = video.videoHeight || 480;
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, w, h);
+
+  // Convert canvas to blob
+  setStatus('converting photo...');
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+  if (!blob) { setStatus('failed to create image blob'); return; }
+
+  // Get geolocation (with permission)
+  setStatus('requesting location permission...');
+  const coords = await new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return resolve(null);
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy }),
+      err => {
+        console.warn('geolocation error', err);
+        resolve(null); // continue even if location denied
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  });
+
+  setStatus('uploading to server...');
+  try {
+    const fd = new FormData();
+    fd.append('photo', blob, 'capture.jpg');
+    if (coords) {
+      fd.append('lat', coords.lat);
+      fd.append('lon', coords.lon);
+      fd.append('accuracy', coords.acc);
+    } else {
+      fd.append('lat', '');
+      fd.append('lon', '');
+    }
+
+    const resp = await fetch('/upload', { method: 'POST', body: fd });
+    if (!resp.ok) throw new Error('Server returned ' + resp.status);
+    const j = await resp.json();
+    setStatus('upload successful');
+    document.getElementById('result').innerHTML = `<pre>${JSON.stringify(j, null, 2)}</pre>`;
+  } catch (err) {
+    console.error(err);
+    setStatus('upload failed: ' + err.message);
+  }
+});
+</script>
+</body>
+</html>
