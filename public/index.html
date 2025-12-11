@@ -1,44 +1,376 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Quick Photo Upload</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Selfie Upload</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; padding: 40px; background: #f5f5f5; }
-        button {
-            padding: 20px 40px;
-            font-size: 18px;
-            background: #2196f3;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: white;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 24px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+            margin-top: 20px;
+        }
+        
+        h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 30px;
+            line-height: 1.5;
+        }
+        
+        #actionBtn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            border-radius: 10px;
+            padding: 20px 40px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 50px;
             cursor: pointer;
-            margin: 20px;
+            width: 100%;
+            max-width: 300px;
+            margin: 20px 0;
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
         }
-        button:disabled { background: #ccc; cursor: wait; }
-        #status { margin: 20px; padding: 15px; border-radius: 5px; min-height: 20px; }
-        .success { background: #e8f5e9; color: #2e7d32; }
-        .error { background: #ffebee; color: #c62828; }
-        .info { background: #e3f2fd; color: #1565c0; }
-        #video, #canvas { display: none; }
+        
+        #actionBtn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 25px rgba(102, 126, 234, 0.5);
+        }
+        
+        #actionBtn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+        
+        #actionBtn:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        
+        .camera-icon {
+            font-size: 24px;
+        }
+        
+        #status {
+            padding: 15px;
+            border-radius: 12px;
+            margin: 20px 0;
+            font-size: 16px;
+            min-height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .info {
+            background: #e3f2fd;
+            color: #1565c0;
+            border-left: 5px solid #2196f3;
+        }
+        
+        .success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border-left: 5px solid #4caf50;
+        }
+        
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            border-left: 5px solid #f44336;
+        }
+        
+        .warning {
+            background: #fff3e0;
+            color: #ef6c00;
+            border-left: 5px solid #ff9800;
+        }
+        
+        #video {
+            width: 100%;
+            max-width: 300px;
+            border-radius: 16px;
+            margin: 20px 0;
+            display: none;
+            transform: scaleX(-1);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        #canvas {
+            display: none;
+        }
+        
+        .gallery-section {
+            width: 100%;
+            margin-top: 30px;
+            text-align: center;
+        }
+        
+        .gallery-title {
+            color: #333;
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #eee;
+        }
+        
+        #gallery {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .photo-item {
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s ease;
+        }
+        
+        .photo-item:hover {
+            transform: scale(1.05);
+        }
+        
+        .photo-item img {
+            width: 100%;
+            height: auto;
+            display: block;
+            border-radius: 8px;
+        }
+        
+        .permission-note {
+            background: #fff3cd;
+            color: #856404;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-size: 14px;
+            border-left: 5px solid #ffc107;
+            text-align: left;
+        }
+        
+        .permission-note ul {
+            margin-left: 20px;
+            margin-top: 10px;
+        }
+        
+        .permission-note li {
+            margin-bottom: 5px;
+        }
+        
+        /* Mobile-specific styles */
+        @media (max-width: 480px) {
+            body {
+                padding: 15px;
+            }
+            
+            .container {
+                padding: 20px;
+                border-radius: 20px;
+            }
+            
+            h1 {
+                font-size: 24px;
+            }
+            
+            #actionBtn {
+                padding: 18px 30px;
+                font-size: 16px;
+            }
+            
+            #video {
+                max-width: 250px;
+            }
+        }
+        
+        /* Animation for photo capture */
+        @keyframes flash {
+            0% { opacity: 0; }
+            50% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+        
+        .flash-effect {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 9999;
+            animation: flash 0.5s ease-in-out;
+        }
+        
+        footer {
+            margin-top: 30px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+            text-align: center;
+        }
+        
+        footer a {
+            color: white;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
-    <h1>📸 wellcome to section-B</h1>
+    <div class="container">
+        <h1>📸 Selfie Upload</h1>
+        <p class="subtitle">Take a selfie with your front camera and upload it instantly</p>
+        
+        <button id="actionBtn">
+            <span class="camera-icon">📷</span>
+            <span class="btn-text">Take & Upload Selfie</span>
+        </button>
+        
+        <div id="status" class="info">
+            Ready when you are!
+        </div>
+        
+        <div class="permission-note">
+            <strong>Note:</strong> When you click the button:
+            <ul>
+                <li>Your browser will ask for camera permission</li>
+                <li>It will also ask for location permission (optional)</li>
+                <li>The front (selfie) camera will be used automatically</li>
+                <li>Photo will be captured and uploaded automatically</li>
+            </ul>
+        </div>
+        
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas"></canvas>
+        
+        <div class="gallery-section">
+            <div class="gallery-title">📁 Your Uploaded Selfies</div>
+            <div id="gallery">
+                <!-- Uploaded photos will appear here -->
+                <div style="color: #999; font-style: italic; padding: 20px;">
+                    No selfies yet. Take your first one!
+                </div>
+            </div>
+        </div>
+    </div>
     
-    <!-- Single button for everything -->
-    <button id="actionBtn" onclick="takePhotoAndUpload()">See the Photo</button>
+    <div id="flash" class="flash-effect"></div>
     
-    <!-- Hidden elements for camera -->
-    <video id="video" autoplay></video>
-    <canvas id="canvas"></canvas>
-    
-    <!-- Status messages -->
-    <div id="status" class="info">Ready when you are.</div>
-    
-    <!-- Gallery for uploaded photos -->
-    <div id="gallery" style="margin-top: 30px;"></div>
+    <footer>
+        <p>Photos are uploaded to a secure server • <a href="/photos" target="_blank">View all uploads</a></p>
+    </footer>
     
     <script src="script.js"></script>
+    <script>
+        // Add flash effect on photo capture
+        function triggerFlash() {
+            const flash = document.getElementById('flash');
+            flash.style.animation = 'none';
+            flash.offsetHeight; // Trigger reflow
+            flash.style.animation = 'flash 0.5s ease-in-out';
+        }
+        
+        // Update button text dynamically
+        document.getElementById('actionBtn').addEventListener('click', function() {
+            const btnText = this.querySelector('.btn-text');
+            const originalText = btnText.textContent;
+            
+            // Update button immediately
+            this.disabled = true;
+            btnText.textContent = 'Processing...';
+            
+            // Add loading spinner
+            const loadingSpan = document.createElement('span');
+            loadingSpan.className = 'loading';
+            loadingSpan.style.marginLeft = '10px';
+            this.appendChild(loadingSpan);
+            
+            // Listen for photo capture to trigger flash
+            setTimeout(() => {
+                // This would be better integrated with the actual capture moment
+                // For now, we'll trigger it after a delay
+                triggerFlash();
+            }, 800);
+            
+            // Restore button after completion (handled by script.js)
+        });
+        
+        // Auto-rotate handling for mobile
+        if (screen.orientation && screen.orientation.lock) {
+            try {
+                screen.orientation.lock('portrait');
+            } catch (e) {
+                console.log('Could not lock orientation:', e);
+            }
+        }
+        
+        // Prevent pinch-zoom on mobile
+        document.addEventListener('touchmove', function(event) {
+            if (event.scale !== 1) {
+                event.preventDefault();
+            }
+        }, { passive: false });
+        
+        // Update copyright year
+        document.addEventListener('DOMContentLoaded', function() {
+            const yearSpan = document.getElementById('currentYear');
+            if (yearSpan) {
+                yearSpan.textContent = new Date().getFullYear();
+            }
+        });
+    </script>
 </body>
 </html>
