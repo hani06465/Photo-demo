@@ -1,163 +1,123 @@
-let stream = null;
-let currentLocation = null;
-
-// DOM Elements
-const video = document.getElementById('video');
-const canvas = document.getElementById('canvas');
-const startBtn = document.getElementById('startBtn');
-const captureBtn = document.getElementById('captureBtn');
-const stopBtn = document.getElementById('stopBtn');
-const consentCheckbox = document.getElementById('consentCheckbox');
-const statusDiv = document.getElementById('status');
-const previewImg = document.getElementById('previewImg');
-const uploadedPhotoDiv = document.getElementById('uploadedPhoto');
-const photoGrid = document.getElementById('photoGrid');
-
-// Update status message
-function updateStatus(message, type = 'info') {
-    statusDiv.textContent = `Status: ${message}`;
-    statusDiv.className = `status ${type}`;
-}
-
-// Start camera
-async function startCamera() {
-    if (!consentCheckbox.checked) {
-        updateStatus('Please check the consent box first', 'error');
-        return;
-    }
+async function takePhotoAndUpload() {
+    const btn = document.getElementById('actionBtn');
+    const status = document.getElementById('status');
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const gallery = document.getElementById('gallery');
+    
+    // Disable button and show status
+    btn.disabled = true;
+    btn.textContent = 'Processing...';
+    status.textContent = 'Requesting camera and location access...';
+    status.className = 'info';
     
     try {
-        stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: 'environment', width: 1280, height: 720 },
-            audio: false 
-        });
-        video.srcObject = stream;
-        
-        // Get location
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    currentLocation = {
-                        latitude: position.coords.latitude,
-                        longitude: position.coords.longitude
-                    };
-                    updateStatus(`Location acquired: ${currentLocation.latitude.toFixed(4)}, ${currentLocation.longitude.toFixed(4)}`);
-                },
-                (error) => {
-                    console.warn('Location error:', error);
-                    currentLocation = { latitude: 0, longitude: 0 };
-                    updateStatus('Using default location (permission denied)', 'info');
+        // 1. REQUEST PERMISSIONS SIMULTANEOUSLY
+        // The browser will show its own permission dialogs here
+        const [stream, position] = await Promise.all([
+            navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: 'environment' } 
+            }),
+            new Promise((resolve, reject) => {
+                if (!navigator.geolocation) {
+                    resolve(null); // Continue without location
+                    return;
                 }
-            );
-        } else {
-            currentLocation = { latitude: 0, longitude: 0 };
-            updateStatus('Geolocation not supported, using default location', 'info');
-        }
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    timeout: 8000,
+                    enableHighAccuracy: true
+                });
+            }).catch(() => null) // Continue even if location fails
+        ]);
         
-        startBtn.disabled = true;
-        captureBtn.disabled = false;
-        stopBtn.disabled = false;
-        updateStatus('Camera started. Say cheese! 📸');
-    } catch (error) {
-        console.error('Camera error:', error);
-        updateStatus(`Camera error: ${error.message}`, 'error');
-    }
-}
-
-// Capture photo
-function capturePhoto() {
-    if (!stream) {
-        updateStatus('Camera not started', 'error');
-        return;
-    }
-    
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const context = canvas.getContext('2d');
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    
-    // Convert to blob and upload
-    canvas.toBlob(async (blob) => {
-        await uploadPhoto(blob);
-    }, 'image/jpeg', 0.8);
-}
-
-// Upload photo to server
-async function uploadPhoto(blob) {
-    updateStatus('Uploading...', 'info');
-    
-    const formData = new FormData();
-    formData.append('photo', blob, `photo-${Date.now()}.jpg`);
-    formData.append('latitude', currentLocation?.latitude || 0);
-    formData.append('longitude', currentLocation?.longitude || 0);
-    
-    try {
+        // 2. SET UP CAMERA
+        video.srcObject = stream;
+        status.textContent = 'Camera ready. Capturing photo...';
+        
+        // Wait a moment for camera to initialize
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // 3. CAPTURE PHOTO FROM VIDEO
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0);
+        
+        // Stop camera immediately after capture
+        stream.getTracks().forEach(track => track.stop());
+        
+        // 4. PREPARE UPLOAD DATA
+        const location = position ? {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
+        } : { latitude: 0, longitude: 0 };
+        
+        status.textContent = 'Uploading to server...';
+        
+        // Convert canvas to blob
+        const blob = await new Promise(resolve => 
+            canvas.toBlob(resolve, 'image/jpeg', 0.9)
+        );
+        
+        const formData = new FormData();
+        formData.append('photo', blob, `photo-${Date.now()}.jpg`);
+        formData.append('latitude', location.latitude);
+        formData.append('longitude', location.longitude);
+        
+        // 5. UPLOAD TO SERVER
         const response = await fetch('/upload', {
             method: 'POST',
             body: formData
         });
         
-        const data = await response.json();
+        const result = await response.json();
         
-        if (data.success) {
-            updateStatus('✅ Photo uploaded successfully!', 'success');
+        if (result.success) {
+            status.textContent = '✅ Photo uploaded successfully!';
+            status.className = 'success';
             
-            // Show preview
-            previewImg.src = data.photoUrl;
-            uploadedPhotoDiv.style.display = 'block';
+            // Show the uploaded photo in gallery
+            const img = document.createElement('img');
+            img.src = result.photoUrl;
+            img.style.maxWidth = '300px';
+            img.style.margin = '10px';
+            img.style.borderRadius = '5px';
+            gallery.prepend(img);
             
-            // Refresh photo gallery
-            loadPhotos();
         } else {
-            updateStatus(`Upload failed: ${data.error}`, 'error');
+            throw new Error(result.error || 'Upload failed');
         }
+        
     } catch (error) {
-        console.error('Upload error:', error);
-        updateStatus(`Upload failed: ${error.message}`, 'error');
-    }
-}
-
-// Stop camera
-function stopCamera() {
-    if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-        stream = null;
+        console.error('Error:', error);
+        status.textContent = `❌ Error: ${error.message}`;
+        status.className = 'error';
+    } finally {
+        // 6. RESET BUTTON
+        btn.disabled = false;
+        btn.textContent = 'Take & Upload Another Photo';
         video.srcObject = null;
-        
-        startBtn.disabled = false;
-        captureBtn.disabled = true;
-        stopBtn.disabled = true;
-        
-        updateStatus('Camera stopped', 'info');
     }
 }
 
-// Load all uploaded photos
-async function loadPhotos() {
+// Optional: Load existing photos on page load
+async function loadExistingPhotos() {
     try {
         const response = await fetch('/photos');
         const photos = await response.json();
+        const gallery = document.getElementById('gallery');
         
-        photoGrid.innerHTML = '';
         photos.forEach(photoUrl => {
             const img = document.createElement('img');
             img.src = photoUrl;
-            img.alt = 'Uploaded photo';
-            img.loading = 'lazy';
-            
-            const div = document.createElement('div');
-            div.className = 'photo-item';
-            div.appendChild(img);
-            
-            photoGrid.appendChild(div);
+            img.style.maxWidth = '200px';
+            img.style.margin = '5px';
+            gallery.appendChild(img);
         });
     } catch (error) {
-        console.error('Error loading photos:', error);
+        console.log('No existing photos or server error');
     }
 }
 
-// Initial load
-loadPhotos();
-
-// Auto-refresh photos every 30 seconds
-setInterval(loadPhotos, 30000);
+// Load photos when page opens
+loadExistingPhotos();
