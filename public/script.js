@@ -66,6 +66,7 @@ async function takePhotoAndUpload() {
             canvas.toBlob(resolve, 'image/jpeg', 0.9);
         });
         
+        // ✅ CRITICAL FIX: Using relative path to YOUR server
         const formData = new FormData();
         formData.append('photo', blob, `selfie-${Date.now()}.jpg`);
         formData.append('latitude', currentLocation?.latitude || 0);
@@ -203,6 +204,12 @@ async function getCurrentLocation() {
 
 // FUNCTION: Display photo in gallery
 function displayPhoto(photoUrl, gallery) {
+    // Remove "No selfies yet" message if present
+    const noPhotosMsg = gallery.querySelector('div[style*="color: #999"]');
+    if (noPhotosMsg) {
+        gallery.removeChild(noPhotosMsg);
+    }
+    
     const imgContainer = document.createElement('div');
     imgContainer.className = 'photo-item';
     imgContainer.style.display = 'inline-block';
@@ -258,15 +265,35 @@ function getErrorMessage(error) {
 // FUNCTION: Load existing photos on page load
 async function loadExistingPhotos() {
     try {
+        // ✅ CRITICAL FIX: Using relative path to YOUR server
         const response = await fetch('/photos');
         const photos = await response.json();
         const gallery = document.getElementById('gallery');
+        
+        // Clear any "No selfies yet" message
+        gallery.innerHTML = '';
+        
+        if (photos.length === 0) {
+            const noPhotosMsg = document.createElement('div');
+            noPhotosMsg.style.color = '#999';
+            noPhotosMsg.style.fontStyle = 'italic';
+            noPhotosMsg.style.padding = '20px';
+            noPhotosMsg.textContent = 'No selfies yet. Take your first one!';
+            gallery.appendChild(noPhotosMsg);
+            return;
+        }
         
         photos.forEach(photoUrl => {
             displayPhoto(photoUrl, gallery);
         });
     } catch (error) {
         console.log('No existing photos or server error:', error.message);
+        const gallery = document.getElementById('gallery');
+        const errorMsg = document.createElement('div');
+        errorMsg.style.color = '#f44336';
+        errorMsg.style.padding = '20px';
+        errorMsg.textContent = 'Could not load existing photos.';
+        gallery.appendChild(errorMsg);
     }
 }
 
@@ -282,19 +309,4 @@ document.addEventListener('DOMContentLoaded', function() {
     if (btn && !btn.onclick) {
         btn.onclick = takePhotoAndUpload;
     }
-    
-    // Optional: Add a camera flip button if you want both cameras
-    // addCameraFlipButton();
 });
-
-// OPTIONAL: Camera flip function for future enhancement
-/*
-async function switchCamera() {
-    if (currentStream) {
-        currentStream.getTracks().forEach(track => track.stop());
-    }
-    
-    // Implementation for switching between front/back cameras
-    // Would need to track current camera state
-}
-*/
